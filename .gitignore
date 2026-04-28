@@ -7,3 +7,8 @@ data/*.db-journal
 .pytest_cache/
 .DS_Store
 *.egg-info/
+
+# Office app lock files
+~$*.docx
+~$*.xlsx
+~$*.pptx
