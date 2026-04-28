@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>News-Engine · Allocation Research Platform</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg" />
+  <link rel="stylesheet" href="/static/styles.css" />
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">NE</div>
+      <div>
+        <div class="brand-title">News-Engine</div>
+        <div class="brand-sub">Real-time news → portfolio allocation</div>
+      </div>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-view="live">Live</button>
+      <button class="tab" data-view="forecast">Forecast</button>
+      <button class="tab" data-view="backtest">Backtest</button>
+      <button class="tab" data-view="news">News</button>
+      <button class="tab" data-view="trades">Trades</button>
+    </nav>
+    <div class="status">
+      <span class="dot" id="ws-dot"></span>
+      <span id="ws-label">connecting…</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- LIVE VIEW -->
+    <section class="view" id="view-live">
+      <div class="kpi-row">
+        <div class="kpi">
+          <div class="kpi-label">Portfolio equity</div>
+          <div class="kpi-value" id="kpi-equity">—</div>
+          <div class="kpi-sub" id="kpi-pnl">—</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Return since inception</div>
+          <div class="kpi-value" id="kpi-return">—</div>
+          <div class="kpi-sub">Paper trading, $1M seed</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">Benchmark (SPY)</div>
+          <div class="kpi-value" id="kpi-bench">—</div>
+          <div class="kpi-sub" id="kpi-alpha">—</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-label">News ingested (24h)</div>
+          <div class="kpi-value" id="kpi-news24">—</div>
+          <div class="kpi-sub" id="kpi-providers">—</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head">
+            <h3>Equity curve vs SPY</h3>
+            <button class="btn-ghost" id="btn-tick">Run allocation tick</button>
+          </div>
+          <div id="chart-equity" class="chart"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Current allocation</h3></div>
+          <div id="chart-allocation" class="chart"></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head"><h3>Latest signals</h3></div>
+          <div id="signals-feed" class="feed"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>Holdings</h3></div>
+          <table class="tbl" id="holdings-tbl">
+            <thead><tr><th>Ticker</th><th>Weight</th><th>Qty</th><th>Price</th><th>Value</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- FORECAST VIEW -->
+    <section class="view hidden" id="view-forecast">
+      <div class="section-intro">
+        <h2>Forecasting sub-component</h2>
+        <p>Sub-component A from Dr. Singh's Feb-6 email — nine forecasting models behind a uniform <code>Forecaster</code> interface. TimesFM, ARIMA, Holt-Winters, EWMA, MLP, LSTM, plus three naive baselines.</p>
+      </div>
+
+      <nav class="subtabs" role="tablist">
+        <button class="subtab active" data-subview="runner" role="tab">Runner</button>
+        <button class="subtab" data-subview="leaderboard" role="tab">Toy leaderboard</button>
+      </nav>
+
+      <!-- Runner sub-view -->
+      <div class="subview" id="subview-runner">
+        <div class="card">
+          <div class="card-head">
+            <h3>Run forecasts on a ticker</h3>
+            <span class="card-sub">History → fit models → forecast held-out tail + forward horizon</span>
+          </div>
+          <form id="fc-form" class="fc-form">
+            <label>Ticker
+              <div class="combo">
+                <select id="fc-ticker-pick">
+                  <option value="">— quick pick —</option>
+                </select>
+                <input id="fc-ticker" placeholder="or type, e.g. NVDA" autocomplete="off" />
+              </div>
+            </label>
+            <label>History window
+              <select id="fc-period">
+                <option value="1y">1 year</option>
+                <option value="2y" selected>2 years</option>
+                <option value="5y">5 years</option>
+                <option value="10y">10 years</option>
+              </select>
+            </label>
+            <label>Horizon (days)
+              <input id="fc-horizon" type="number" min="1" max="252" value="32" />
+            </label>
+            <label>Held-out tail
+              <input id="fc-evaltail" type="number" min="0" max="252" value="32" />
+            </label>
+            <div class="fc-models">
+              <div class="fc-models-head">
+                <span>Models</span>
+                <span class="fc-models-actions">
+                  <button type="button" class="btn-link" id="fc-models-all">all</button>
+                  <button type="button" class="btn-link" id="fc-models-none">none</button>
+                  <button type="button" class="btn-link" id="fc-models-fast">fast only</button>
+                </span>
+              </div>
+              <div id="fc-models-grid" class="fc-models-grid">
+                <!-- populated from /api/forecast/models -->
+              </div>
+            </div>
+            <div class="submit-row">
+              <button class="btn-primary" type="submit">Run forecast</button>
+              <span id="fc-status" class="bt-status"></span>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Forecast chart</h3>
+            <span class="card-sub" id="fc-chart-caption">Run a forecast to populate.</span>
+          </div>
+          <div id="fc-chart" class="chart chart-lg"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h3>Per-model metrics (on held-out tail)</h3>
+            <span class="card-sub">MAE / RMSE / MASE / directional accuracy</span>
+          </div>
+          <table class="tbl" id="fc-metrics-tbl">
+            <thead>
+              <tr>
+                <th>Model</th><th>Family</th><th>MAE</th><th>RMSE</th><th>MAPE</th>
+                <th>MASE</th><th>Dir-acc</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Leaderboard sub-view -->
+      <div class="subview hidden" id="subview-leaderboard">
+        <div class="card">
+          <div class="card-head">
+            <h3>Toy-series leaderboard</h3>
+            <div class="card-actions">
+              <label class="inline-label">Horizon
+                <input id="lb-horizon" type="number" min="1" max="128" value="32" />
+              </label>
+              <label class="inline-label">Series length
+                <input id="lb-n" type="number" min="100" max="2000" value="400" />
+              </label>
+              <button class="btn-primary" id="btn-run-leaderboard" type="button">Run toy eval</button>
+              <span id="lb-status" class="bt-status"></span>
+            </div>
+          </div>
+          <p class="card-sub" style="margin: 0 0 14px">
+            Deterministic series: sine, sine+trend, AR(1), random walk, regime switch, noisy price.
+            Every model runs on every series; models with missing deps are flagged as <em>skipped</em>.
+          </p>
+
+          <h4 class="subhead">Overall (averaged across series)</h4>
+          <table class="tbl" id="lb-overall-tbl">
+            <thead>
+              <tr>
+                <th>Model</th><th>MAE</th><th>RMSE</th><th>MAPE</th><th>MASE</th><th>Dir-acc</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h3>Per-series breakdown</h3></div>
+          <div id="lb-per-series" class="lb-per-series"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- BACKTEST VIEW -->
+    <section class="view hidden" id="view-backtest">
+      <div class="card">
+        <div class="card-head"><h3>Backtest configuration</h3></div>
+        <form id="bt-form" class="bt-form">
+          <label>Universe (comma-separated)
+            <input id="bt-universe" value="SPY,QQQ,TLT,GLD,XLE,XLK,XLF,XLV,XLY,EEM,EFA" />
+          </label>
+          <label>Start <input id="bt-start" type="date" value="2023-01-01" /></label>
+          <label>End <input id="bt-end" type="date" value="2024-12-31" /></label>
+          <label>Starting cash <input id="bt-cash" type="number" value="1000000" /></label>
+          <label>Rebalance
+            <select id="bt-rebal">
+              <option value="daily">Daily</option>
+              <option value="weekly" selected>Weekly</option>
+              <option value="monthly">Monthly</option>
+            </select>
+          </label>
+          <label>Max weight per name <input id="bt-maxw" type="number" step="0.01" value="0.25" /></label>
+          <label>Transaction cost (bps) <input id="bt-tc" type="number" step="0.5" value="2" /></label>
+          <label>Benchmark <input id="bt-bench" value="SPY" /></label>
+          <label class="chk"><input type="checkbox" id="bt-news" checked /> Use news signals</label>
+          <div class="submit-row">
+            <button class="btn-primary" type="submit">Run backtest</button>
+            <span id="bt-status" class="bt-status"></span>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Results</h3></div>
+        <div id="bt-metrics" class="metrics-grid"></div>
+        <div id="bt-chart" class="chart chart-lg"></div>
+        <div id="bt-dd" class="chart"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h3>Past runs</h3></div>
+        <table class="tbl" id="runs-tbl">
+          <thead><tr><th>ID</th><th>When</th><th>Universe</th><th>Period</th><th>Return</th><th>Sharpe</th><th>Max DD</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- NEWS VIEW -->
+    <section class="view hidden" id="view-news">
+      <div class="card">
+        <div class="card-head">
+          <h3>News feed</h3>
+          <div class="news-controls">
+            <input id="news-filter" placeholder="Filter by ticker (e.g. AAPL)" />
+            <button class="btn-ghost" id="btn-refresh-news">Refresh</button>
+          </div>
+        </div>
+        <div id="news-feed" class="feed feed-lg"></div>
+      </div>
+    </section>
+
+    <!-- TRADES VIEW -->
+    <section class="view hidden" id="view-trades">
+      <div class="card">
+        <div class="card-head"><h3>Paper-trade log</h3></div>
+        <table class="tbl" id="trades-tbl">
+          <thead><tr><th>Time</th><th>Ticker</th><th>Side</th><th>Qty</th><th>Price</th><th>Reason</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>News-Engine · FastAPI + Plotly · live via WebSocket</span>
+    <span id="last-update">—</span>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
